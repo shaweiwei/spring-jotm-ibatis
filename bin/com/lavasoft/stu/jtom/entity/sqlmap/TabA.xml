@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE sqlMap PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN" "http://ibatis.apache.org/dtd/sql-map-2.dtd" >
+
+<!-- 表名:tab_a -->
+<sqlMap namespace="tab_a">
+        <typeAlias alias="TabA" type="com.lavasoft.stu.jtom.entity.TabA"/>
+        <resultMap id="result_base" class="TabA">
+            <result property="id" column="id"/>
+            <result property="name" column="name"/>
+            <result property="address" column="address"/>
+        </resultMap>
+        <!-- 添加 -->
+        <insert id="insert" parameterClass="TabA">
+                insert into tab_a(
+                id,
+                name,
+                address
+                ) values (
+                #id#,
+                #name#,
+                #address#
+                )
+                <selectKey keyProperty="id" resultClass="long">
+                        select LAST_INSERT_ID()
+                </selectKey>
+        </insert>
+        <!-- 更新 -->
+        <update id="update" parameterClass="TabA">
+                update tab_a set
+                id = #id#,
+                name = #name#,
+                address = #address#
+                where id = #id#
+        </update>
+        <!-- 删除 -->
+        <delete id="deleteById" parameterClass="long">
+                delete from tab_a
+                where id = #value#
+        </delete>
+        <!-- 根据ID获取 -->
+        <select id="findById" parameterClass="long" resultMap="tab_a.result_base">
+                select *
+                from tab_a
+                where id = #value#
+        </select>
+</sqlMap> 

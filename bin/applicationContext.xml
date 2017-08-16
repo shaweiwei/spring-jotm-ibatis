@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 局部单元测试使用，不正式发布，不要删除 -->
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jee="http://www.springframework.org/schema/jee"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                     http://www.springframework.org/schema/jee http://www.springframework.org/schema/jee/spring-jee-2.0.xsd
+                     http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.0.xsd
+                     http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.0.xsd">
+
+	<!--指定Spring配置中用到的属性文件 -->
+	<bean id="propertyConfig"
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<list>
+				<value>classpath:jdbc.properties</value>
+			</list>
+		</property>
+	</bean>
+	<!-- JOTM实例 -->
+	<bean id="jotm" class="org.springframework.transaction.jta.JotmFactoryBean" />
+	<!-- JTA事务管理器 -->
+	<bean id="myJtaManager"
+		class="org.springframework.transaction.jta.JtaTransactionManager">
+		<property name="userTransaction">
+			<ref local="jotm" />
+		</property>
+	</bean>
+	<!-- 数据源A -->
+	<bean id="dataSourceA" class="org.enhydra.jdbc.pool.StandardXAPoolDataSource"
+		destroy-method="shutdown">
+		<property name="dataSource">
+			<bean class="org.enhydra.jdbc.standard.StandardXADataSource"
+				destroy-method="shutdown">
+				<property name="transactionManager" ref="jotm" />
+				<property name="driverName" value="${jdbc.driver}" />
+				<property name="url" value="${jdbc.url}" />
+			</bean>
+		</property>
+		<property name="user" value="${jdbc.username}" />
+		<property name="password" value="${jdbc.password}" />
+	</bean>
+	<!-- 数据源B -->
+	<bean id="dataSourceB" class="org.enhydra.jdbc.pool.StandardXAPoolDataSource"
+		destroy-method="shutdown">
+		<property name="dataSource">
+			<bean class="org.enhydra.jdbc.standard.StandardXADataSource"
+				destroy-method="shutdown">
+				<property name="transactionManager" ref="jotm" />
+				<property name="driverName" value="${jdbc2.driver}" />
+				<property name="url" value="${jdbc2.url}" />
+			</bean>
+		</property>
+		<property name="user" value="${jdbc2.username}" />
+		<property name="password" value="${jdbc.password}" />
+	</bean>
+	<!-- 事务切面配置 -->
+	<aop:config>
+		<aop:pointcut id="serviceOperation" expression="execution(* *..service*..*(..))" />
+		<aop:advisor pointcut-ref="serviceOperation" advice-ref="txAdvice" />
+	</aop:config>
+	<!-- 通知配置 -->
+	<tx:advice id="txAdvice" transaction-manager="myJtaManager">
+		<tx:attributes>
+			<tx:method name="delete*" rollback-for="Exception" />
+			<tx:method name="save*" rollback-for="Exception" />
+			<tx:method name="update*" rollback-for="Exception" />
+			<tx:method name="*" read-only="true" rollback-for="Exception" />
+		</tx:attributes>
+	</tx:advice>
+
+	<!--根据dataSourceA和sql-map-config_A.xml创建一个SqlMapClientA -->
+	<bean id="sqlMapClientA" class="org.springframework.orm.ibatis.SqlMapClientFactoryBean">
+		<property name="dataSource">
+			<ref local="dataSourceA" />
+		</property>
+		<property name="configLocation">
+			<value>sql-map-config_A.xml</value>
+		</property>
+	</bean>
+	<!--根据dataSourceB和sql-map-config_B.xml创建一个SqlMapClientB -->
+	<bean id="sqlMapClientB" class="org.springframework.orm.ibatis.SqlMapClientFactoryBean">
+		<property name="dataSource">
+			<ref local="dataSourceB" />
+		</property>
+		<property name="configLocation">
+			<value>sql-map-config_B.xml</value>
+		</property>
+	</bean>
+	<!--根据sqlMapClientA创建一个SqlMapClientTemplate的模版类实例sqlMapClientTemplateA -->
+	<bean id="sqlMapClientTemplateA" class="org.springframework.orm.ibatis.SqlMapClientTemplate">
+		<property name="sqlMapClient" ref="sqlMapClientA" />
+	</bean>
+	<!--根据sqlMapClientB创建一个SqlMapClientTemplate的模版类实例sqlMapClientTemplateB -->
+	<bean id="sqlMapClientTemplateB" class="org.springframework.orm.ibatis.SqlMapClientTemplate">
+		<property name="sqlMapClient" ref="sqlMapClientB" />
+	</bean>
+
+	<!-- 配置DAO，并注入所使用的sqlMapClientTemplate实例 -->
+	<bean id="tabADAO" class="com.lavasoft.stu.jtom.dao.impl.TabADAOImpl">
+		<property name="sqlMapClientTemplate" ref="sqlMapClientTemplateA" />
+	</bean>
+	<bean id="tabBDAO" class="com.lavasoft.stu.jtom.dao.impl.TabBDAOImpl">
+		<property name="sqlMapClientTemplate" ref="sqlMapClientTemplateB" />
+	</bean>
+
+	<!-- Service配置，注入DAO -->
+	<bean id="stuJotmService" class="com.lavasoft.stu.jtom.service.StuJotmServiceImpl">
+		<property name="tabADAO" ref="tabADAO" />
+		<property name="tabBDAO" ref="tabBDAO" />
+	</bean>
+</beans>
